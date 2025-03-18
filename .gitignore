@@ -1,0 +1,17 @@
+myvenv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.DS_Store
+*.env
+*.idea
+*.vscode
+*.vs
+*.bak
+*.swp
+*.swo
+mvenv
