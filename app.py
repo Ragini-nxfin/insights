@@ -1,12 +1,5 @@
 # app.py
 import streamlit as st
-import warnings
-warnings.filterwarnings('ignore')
-
-
-
-
-
 from car_utils import (
     preprocess_data, find_yes_no_columns, convert_yes_no_to_binary,
     find_highest_features_same_variant, new_suggestion, generate_insight_same_variant,
@@ -35,14 +28,40 @@ listed_df = load_data()
 
 if listed_df is not None:
     st.subheader("Select Your Car Details")
+    
+    # Select Make
     make = st.selectbox("Make", options=sorted(listed_df['Make'].unique()))
-    model = st.selectbox("Model", options=sorted(listed_df[listed_df['Make'] == make]['Model'].unique()))
-    variant = st.selectbox("Variant", options=sorted(listed_df[(listed_df['Make'] == make) & (listed_df['Model'] == model)]['Variant'].unique()))
+    
+    # Filter models based on selected Make
+    model_options = sorted(listed_df[listed_df['Make'] == make]['Model'].unique())
+    model = st.selectbox("Model", options=model_options)
+    
+    # Filter variants based on selected Make and Model
+    variant_options = sorted(listed_df[(listed_df['Make'] == make) & 
+                                       (listed_df['Model'] == model)]['Variant'].unique())
+    variant = st.selectbox("Variant", options=variant_options)
+    
+    # Filter available prices based on Make, Model, and Variant
+    filtered_df = listed_df[(listed_df['Make'] == make) & 
+                            (listed_df['Model'] == model) & 
+                            (listed_df['Variant'] == variant)]
+    price_options = sorted(filtered_df['Price_numeric'].unique(), key=int)
+    price = st.selectbox("Price (Rs)", options=price_options, format_func=lambda x: f"Rs {int(x):,}")
+    
+    # Filter available distances based on Make, Model, Variant, and Price
+    filtered_df_by_price = filtered_df[filtered_df['Price_numeric'] == price]
+    distance_options = sorted(filtered_df_by_price['Distance_numeric'].unique(), key=int)
+    distance = st.selectbox("Distance Travelled (km)", options=distance_options, format_func=lambda x: f"{int(x):,} km")
+    
+    # Filter available ages based on Make, Model, Variant, Price, and Distance
+    filtered_df_by_distance = filtered_df_by_price[filtered_df_by_price['Distance_numeric'] == distance]
+    age_options = sorted(filtered_df_by_distance['Age'].unique(), key=int)
+    age = st.selectbox("Age (years)", options=age_options, format_func=lambda x: f"{int(x)} years")
+    
+    # City selection remains unchanged
     city = st.selectbox("City", options=sorted(listed_df['City'].unique()))
-    price = st.number_input("Price (Rs)", min_value=0, value=500000, step=10000)
-    distance = st.number_input("Distance Travelled (km)", min_value=0, value=50000, step=1000)
-    age = st.number_input("Age (years)", min_value=0, value=3, step=1)
-
+    
+    # Comparison type selection
     comparison_type = st.selectbox("Comparison Type", [
         "Same Variant",
         "Different Variants (Same Model)",
