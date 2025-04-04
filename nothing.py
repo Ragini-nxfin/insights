@@ -1,10 +1,9 @@
-# app.py
-import streamlit as st
+""" import streamlit as st
 from car_utils import (
     preprocess_data, find_yes_no_columns, convert_yes_no_to_binary,
-    new_suggestion, generate_insight_same_variant, finalize_insight_with_feature_score,
-    new_suggestion_different_variant, generate_insight_different_variant, 
-    finalize_insight_with_feature_score_different_variant,
+    find_highest_features_same_variant, new_suggestion, generate_insight_same_variant,
+    finalize_insight_with_feature_score, new_suggestion_different_variant,
+    generate_insight_different_variant, finalize_insight_with_feature_score_different_variant,
     new_suggestion_no_restrictions, generate_insight_no_restrictions,
     finalize_insight_no_restrictions, new_suggestion_variants_selected_model,
     generate_insight_variants_selected_model, finalize_insight_variants_selected_model
@@ -109,7 +108,4 @@ if listed_df is not None:
                 st.success(final_insight)
 else:
     st.stop()
-
-
-
-
+"""
