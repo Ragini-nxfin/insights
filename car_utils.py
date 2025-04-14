@@ -4,6 +4,40 @@ import re
 import warnings
 warnings.filterwarnings('ignore')
 
+# Load mapped city file 
+
+mapped_cities_df = pd.read_csv('Mapped_city.csv')
+mapped_cities_df['city'] = mapped_cities_df['city'].str.lower().str.strip()
+mapped_cities_df['state'] = mapped_cities_df['state'].str.lower().str.strip()
+
+# Create a dictionary: city to state 
+city_to_state = dict(zip(mapped_cities_df['city'], mapped_cities_df['state']))
+
+# Helper function for mapped cities 
+def filter_same_state(listed_df, city):
+    """
+    Filters the listed_df to include only rows where the city belongs 
+    to the same state as the provided city using the mapped city-state dictionary.
+    """
+    city = str(city).strip().lower()
+    selected_state = city_to_state.get(city)
+
+    if not selected_state:
+        warnings.warn(f"City '{city}' not found in mapping.")
+        return listed_df
+
+    # Normalize cities in listed_df for comparison
+    listed_df = listed_df.copy()
+    listed_df['__clean_city'] = listed_df['City'].astype(str).str.strip().str.lower()
+    listed_df['__mapped_state'] = listed_df['__clean_city'].map(city_to_state)
+
+    same_state_df = listed_df[listed_df['__mapped_state'] == selected_state].copy()
+
+    # Optional debug:
+    # print(f"Filtering cities in state: {selected_state} | Found: {same_state_df['City'].unique()}")
+
+    return same_state_df.drop(columns=['__clean_city', '__mapped_state'])
+
 
 def preprocess_data(df):
     """
@@ -81,6 +115,9 @@ def new_suggestion(listed_df, make, model, variant, city, selected_price, select
     if selected_car.empty:
         return selected_car, price_lower_bound, price_upper_bound
     selected_car = selected_car.iloc[0]
+    
+    listed_df = filter_same_state(listed_df, selected_car['City'])
+    
     better_conditions = (
         (price_filtered_df['Mileage (ARAI)'].astype(float) > float(selected_car['Mileage (ARAI)'])) |
         (price_filtered_df['NCAP Rating'].astype(float) > float(selected_car['NCAP Rating'])) |
@@ -177,6 +214,9 @@ def new_suggestion_different_variant(listed_df, make, model, city, selected_pric
     if selected_car.empty:
         return selected_car, price_lower_bound, price_upper_bound
     selected_car = selected_car.iloc[0]
+    
+    listed_df = filter_same_state(listed_df, selected_car['City'])
+    
     better_conditions = (
         (price_filtered_df['Mileage (ARAI)'].astype(float) > float(selected_car['Mileage (ARAI)'])) |
         (price_filtered_df['NCAP Rating'].astype(float) > float(selected_car['NCAP Rating'])) |
@@ -284,7 +324,7 @@ def finalize_insight_with_feature_score_different_variant(listed_df, insight_dat
     better_options_df = price_filtered_df[better_conditions]
     better_options_df = better_options_df.sort_values(by=['Distance_numeric', 'Age'])
     return better_options_df, price_lower_bound, price_upper_bound
-"""
+
 def new_suggestion_no_restrictions(listed_df, selected_price, selected_distance, selected_age, price_range_percent=10):
     price_lower_bound = selected_price * (1 - price_range_percent / 100)
     price_upper_bound = selected_price * (1 + price_range_percent / 100)
@@ -298,6 +338,8 @@ def new_suggestion_no_restrictions(listed_df, selected_price, selected_distance,
     if selected_car.empty:
         return selected_car, price_lower_bound, price_upper_bound
     selected_car = selected_car.iloc[0]
+    
+    listed_df = filter_same_state(listed_df, selected_car['City'])
     
     # Better comparison conditions with more features
     better_conditions = (
@@ -314,8 +356,54 @@ def new_suggestion_no_restrictions(listed_df, selected_price, selected_distance,
     better_options_df = price_filtered_df[better_conditions]
     better_options_df = better_options_df.sort_values(by=['Distance_numeric', 'Age'])
     return better_options_df, price_lower_bound, price_upper_bound
+""" 
 
+def new_suggestion_no_restrictions(listed_df, selected_price, selected_distance, selected_age, price_range_percent=10):
+    price_lower_bound = selected_price * (1 - price_range_percent / 100)
+    price_upper_bound = selected_price * (1 + price_range_percent / 100)
 
+    # Step 1: Find selected car first (before filtering state)
+    selected_car = listed_df[
+        (listed_df['Price_numeric'] == selected_price) &
+        (listed_df['Distance_numeric'] == selected_distance) &
+        (listed_df['Age'] == selected_age)
+    ]
+
+    if selected_car.empty:
+        return selected_car, price_lower_bound, price_upper_bound
+
+    selected_car = selected_car.iloc[0]
+
+    # Step 2: Filter dataset to same state as selected car
+    listed_df = filter_same_state(listed_df, selected_car['City'])
+
+    # Step 3: Now get price-filtered options **after** state filtering
+    price_filtered_df = listed_df[
+        (listed_df['Price_numeric'] >= price_lower_bound) &
+        (listed_df['Price_numeric'] <= price_upper_bound)
+    ].copy()
+
+    if price_filtered_df.empty:
+        return price_filtered_df, price_lower_bound, price_upper_bound
+
+    # Step 4: Apply better conditions
+    better_conditions = (
+        (price_filtered_df['Mileage (ARAI)'].astype(float) > float(selected_car['Mileage (ARAI)'])) |
+        (price_filtered_df['NCAP Rating'].astype(float) > float(selected_car['NCAP Rating'])) |
+        (price_filtered_df['Airbags'].astype(float) > float(selected_car['Airbags'])) |
+        (price_filtered_df['Seating Capacity'].astype(float) > float(selected_car['Seating Capacity'])) |
+        (price_filtered_df['Seat Belt Warning'].astype(float) > float(selected_car['Seat Belt Warning'])) |
+        (price_filtered_df['Transmission'].astype(float) > float(selected_car['Transmission'])) |
+        (price_filtered_df['Distance_numeric'] < selected_distance) |
+        (price_filtered_df['Age'] < selected_age)
+    )
+
+    better_options_df = price_filtered_df[better_conditions]
+    better_options_df = better_options_df.sort_values(by=['Distance_numeric', 'Age'])
+
+    return better_options_df, price_lower_bound, price_upper_bound
+
+""" 
 def new_suggestion_variants_selected_model(listed_df, make, model, selected_price, selected_distance, selected_age, price_range_percent=10):
     same_model_df = listed_df[(listed_df['Make'] == make) &
                               (listed_df['Model'] == model)].copy()
@@ -333,7 +421,10 @@ def new_suggestion_variants_selected_model(listed_df, make, model, selected_pric
     if selected_car.empty:
         return selected_car, price_lower_bound, price_upper_bound
     selected_car = selected_car.iloc[0]
-    better_conditions = (
+    
+    listed_df = filter_same_state(listed_df, selected_car['City'])
+    
+    better_conditions =(
         (price_filtered_df['Mileage (ARAI)'].astype(float) > float(selected_car['Mileage (ARAI)'])) |
         (price_filtered_df['NCAP Rating'].astype(float) > float(selected_car['NCAP Rating'])) |
         (price_filtered_df['Airbags'].astype(float) > float(selected_car['Airbags'])) |
@@ -347,8 +438,60 @@ def new_suggestion_variants_selected_model(listed_df, make, model, selected_pric
     better_options_df = better_options_df.sort_values(by=['Distance_numeric', 'Age'])
     return better_options_df, price_lower_bound, price_upper_bound
 
-""" Old code
-    def generate_insight_no_restrictions(selected_car, better_options_data):
+""" 
+
+def new_suggestion_variants_selected_model(listed_df, make, model, selected_price, selected_distance, selected_age, price_range_percent=10):
+    same_model_df = listed_df[(listed_df['Make'] == make) &
+                              (listed_df['Model'] == model)].copy()
+
+    if same_model_df.empty:
+        return same_model_df, 0, 0
+
+    selected_car = same_model_df[
+        (same_model_df['Price_numeric'] == selected_price) &
+        (same_model_df['Distance_numeric'] == selected_distance) &
+        (same_model_df['Age'] == selected_age)
+    ]
+
+    if selected_car.empty:
+        return selected_car, selected_price, selected_price
+
+    selected_car = selected_car.iloc[0]
+
+    # Apply state filtering FIRST
+    same_model_df = filter_same_state(same_model_df, selected_car['City'])
+
+    # Now filter by price
+    price_lower_bound = selected_price * (1 - price_range_percent / 100)
+    price_upper_bound = selected_price * (1 + price_range_percent / 100)
+
+    price_filtered_df = same_model_df[
+        (same_model_df['Price_numeric'] >= price_lower_bound) &
+        (same_model_df['Price_numeric'] <= price_upper_bound)
+    ].copy()
+
+    if price_filtered_df.empty:
+        return price_filtered_df, price_lower_bound, price_upper_bound
+
+    # Apply better conditions
+    better_conditions = (
+        (price_filtered_df['Mileage (ARAI)'].astype(float) > float(selected_car['Mileage (ARAI)'])) |
+        (price_filtered_df['NCAP Rating'].astype(float) > float(selected_car['NCAP Rating'])) |
+        (price_filtered_df['Airbags'].astype(float) > float(selected_car['Airbags'])) |
+        (price_filtered_df['Seating Capacity'].astype(float) > float(selected_car['Seating Capacity'])) |
+        (price_filtered_df['Seat Belt Warning'].astype(float) > float(selected_car['Seat Belt Warning'])) |
+        (price_filtered_df['Transmission'].astype(float) > float(selected_car['Transmission'])) |
+        (price_filtered_df['Distance_numeric'] < selected_distance) |
+        (price_filtered_df['Age'] < selected_age)
+    )
+
+    better_options_df = price_filtered_df[better_conditions]
+    better_options_df = better_options_df.sort_values(by=['Distance_numeric', 'Age'])
+
+    return better_options_df, price_lower_bound, price_upper_bound
+
+
+def generate_insight_no_restrictions(selected_car, better_options_data):
     better_options_df, price_lower_bound, price_upper_bound = better_options_data
     if better_options_df.empty:
         return {'status': 'no_better_options', 'comparisons': [], 'best_option': None, 'selected_car': selected_car,
@@ -417,7 +560,7 @@ def generate_insight_no_restrictions(selected_car, better_options_data):
 
 
 """ 
-    def finalize_insight_no_restrictions(listed_df, insight_data, yes_no_cols):
+def finalize_insight_no_restrictions(listed_df, insight_data, yes_no_cols):
     if insight_data['status'] == 'no_better_options':
         return "No better options found across all cars in the same price range."
     best_option = insight_data['best_option']
@@ -448,7 +591,7 @@ def generate_insight_no_restrictions(selected_car, better_options_data):
               f"in {best_option['City']} with {comparison_str} for Rs {int(best_option['Price_numeric'])}. " \
               f"This is within the price range of Rs {int(price_lower_bound)} to Rs {int(price_upper_bound)}."
     return insight
-""" 
+
 def finalize_insight_no_restrictions(listed_df, insight_data, yes_no_cols):
     if insight_data['status'] == 'no_better_options':
         return "No better options found across all cars in the same price range."
@@ -487,6 +630,7 @@ def finalize_insight_no_restrictions(listed_df, insight_data, yes_no_cols):
               f"This is within the price range of Rs {int(price_lower_bound)} to Rs {int(price_upper_bound)}."
     
     return insight
+
 
 
 def generate_insight_variants_selected_model(selected_car, better_options_data):

@@ -59,7 +59,8 @@ if listed_df is not None:
     age = st.selectbox("Age (years)", options=age_options, format_func=lambda x: f"{int(x)} years")
     
     # City selection remains unchanged
-    city = st.selectbox("City", options=sorted(listed_df['City'].unique()))
+    city_options = sorted(filtered_df_by_distance['City'].dropna().unique())
+    city = st.selectbox("City", options=city_options)
     
     # Comparison type selection
     comparison_type = st.selectbox("Comparison Type", [
@@ -76,6 +77,8 @@ if listed_df is not None:
                                  (listed_df['Price_numeric'] == price) &
                                  (listed_df['Distance_numeric'] == distance) &
                                  (listed_df['Age'] == age)]
+                                 
+                                
         
         if selected_car.empty:
             st.warning("No exact match found for this car. Adjust your inputs.")
